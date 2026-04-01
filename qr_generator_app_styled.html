@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>QR Premium</title>
+
+<link rel="manifest" href="manifest.json">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+
+<style>
+:root{--bg1:#0f2027;--bg2:#203a43;--bg3:#2c5364;--card:rgba(255,255,255,0.08);--accent:#00e5ff}
+*{box-sizing:border-box}
+body{
+  margin:0;
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+  background: linear-gradient(135deg,var(--bg1),var(--bg2),var(--bg3));
+  color:#fff;
+  display:flex;justify-content:center;align-items:center;min-height:100vh;
+}
+.app{width:min(420px, 94vw);padding:18px}
+.card{
+  background:var(--card);
+  backdrop-filter: blur(18px);
+  border-radius:24px;
+  padding:18px 16px 16px;
+  box-shadow: 0 20px 40px rgba(0,0,0,.35), inset 0 0 0 1px rgba(255,255,255,.06);
+}
+.header{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.title{font-size:18px;font-weight:700;letter-spacing:.2px}
+.badge{font-size:11px;opacity:.7}
+.input, .file, .select{
+  width:100%;padding:12px;border-radius:12px;border:none;margin-top:10px;font-size:14px;
+}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.btn{
+  width:100%;padding:12px;border-radius:12px;border:none;margin-top:12px;
+  background: linear-gradient(135deg,#00e5ff,#00bcd4);
+  color:#002b36;font-weight:700;cursor:pointer;transition:.2s transform, .2s box-shadow;
+  box-shadow:0 10px 20px rgba(0,229,255,.25);
+}
+.btn.secondary{background:linear-gradient(135deg,#7c4dff,#b388ff); color:#140b3d; box-shadow:0 10px 20px rgba(179,136,255,.25)}
+.btn:active{transform:scale(.98)}
+.canvasWrap{margin-top:14px;display:flex;justify-content:center}
+.canvas{
+  position:relative;display:inline-block;padding:12px;border-radius:16px;background:#fff;
+}
+.canvas img{display:block}
+#logo{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);border-radius:10px}
+.toolbar{display:flex;gap:8px;margin-top:10px}
+.small{font-size:12px;opacity:.75;margin-top:6px}
+.footer{display:flex;justify-content:space-between;align-items:center;margin-top:8px}
+.switch{display:flex;align-items:center;gap:8px;font-size:12px;opacity:.9}
+.switch input{transform:scale(1.1)}
+</style>
+</head>
+<body>
+
+<div class="app">
+  <div class="card">
+    <div class="header">
+      <div class="title">QR Premium</div>
+      <div class="badge">logo • colors • save</div>
+    </div>
+
+    <input id="link" class="input" placeholder="Вставьте ссылку (Яндекс Диск)">
+
+    <div class="row">
+      <input type="color" id="colorDark" class="input" value="#000000" title="Цвет QR">
+      <input type="color" id="colorLight" class="input" value="#ffffff" title="Фон">
+    </div>
+
+    <div class="row">
+      <select id="size" class="select">
+        <option value="200">Размер 200</option>
+        <option value="260" selected>Размер 260</option>
+        <option value="320">Размер 320</option>
+      </select>
+      <select id="ecLevel" class="select">
+        <option value="L">Низкая защита</option>
+        <option value="M" selected>Средняя</option>
+        <option value="Q">Высокая</option>
+        <option value="H">Максимум</option>
+      </select>
+    </div>
+
+    <input type="file" id="logoInput" class="file" accept="image/*">
+
+    <div class="switch">
+      <input type="checkbox" id="round" checked>
+      <label for="round">Скруглённый логотип</label>
+    </div>
+
+    <button class="btn" onclick="generateQR()">Создать QR</button>
+
+    <div class="canvasWrap">
+      <div id="qrcode" class="canvas"></div>
+    </div>
+
+    <div class="toolbar">
+      <button class="btn secondary" onclick="downloadQR()">Скачать</button>
+      <button class="btn secondary" onclick="saveHistory()">Сохранить</button>
+      <button class="btn secondary" onclick="clearHistory()">Очистить</button>
+    </div>
+
+    <div class="small" id="status"></div>
+
+    <div class="footer">
+      <div class="small">История: <span id="count">0</span></div>
+      <div class="small">v1.0</div>
+    </div>
+  </div>
+</div>
+
+<script>
+let lastDataUrl = null;
+
+function mapEC(level){
+  return {L: QRCode.CorrectLevel.L, M: QRCode.CorrectLevel.M, Q: QRCode.CorrectLevel.Q, H: QRCode.CorrectLevel.H}[level];
+}
+
+function generateQR(){
+  const link = document.getElementById('link').value.trim();
+  const size = parseInt(document.getElementById('size').value,10);
+  const dark = document.getElementById('colorDark').value;
+  const light = document.getElementById('colorLight').value;
+  const ec = document.getElementById('ecLevel').value;
+  const qrDiv = document.getElementById('qrcode');
+  const status = document.getElementById('status');
+
+  if(!link){ alert('Вставьте ссылку'); return; }
+
+  qrDiv.innerHTML = '';
+
+  new QRCode(qrDiv, {
+    text: link,
+    width: size,
+    height: size,
+    colorDark: dark,
+    colorLight: light,
+    correctLevel: mapEC(ec)
+  });
+
+  setTimeout(()=>{
+    const img = qrDiv.querySelector('img');
+    if(!img) return;
+
+    // canvas for export
+    const canvas = document.createElement('canvas');
+    canvas.width = size; canvas.height = size;
+    const ctx = canvas.getContext('2d');
+
+    const base = new Image();
+    base.crossOrigin = 'anonymous';
+    base.onload = ()=>{
+      ctx.fillStyle = light; ctx.fillRect(0,0,size,size);
+      ctx.drawImage(base,0,0,size,size);
+
+      const file = document.getElementById('logoInput').files[0];
+      if(file){
+        const reader = new FileReader();
+        reader.onload = e => {
+          const logo = new Image();
+          logo.onload = ()=>{
+            const maxLogo = Math.floor(size*0.28); // ~28%
+            const lw = maxLogo; const lh = maxLogo;
+            const x = (size-lw)/2; const y = (size-lh)/2;
+
+            if(document.getElementById('round').checked){
+              const r = 12;
+              ctx.save();
+              roundRect(ctx, x, y, lw, lh, r);
+              ctx.clip();
+              ctx.drawImage(logo, x, y, lw, lh);
+              ctx.restore();
+            } else {
+              ctx.drawImage(logo, x, y, lw, lh);
+            }
+
+            lastDataUrl = canvas.toDataURL('image/png');
+            status.textContent = 'Готово ✓';
+          };
+          logo.src = e.target.result;
+        };
+        reader.readAsDataURL(file);
+      } else {
+        lastDataUrl = canvas.toDataURL('image/png');
+        status.textContent = 'Готово ✓';
+      }
+    };
+    base.src = img.src;
+  }, 250);
+}
+
+function roundRect(ctx, x, y, w, h, r){
+  ctx.beginPath();
+  ctx.moveTo(x+r,y);
+  ctx.arcTo(x+w,y,x+w,y+h,r);
+  ctx.arcTo(x+w,y+h,x,y+h,r);
+  ctx.arcTo(x,y+h,x,y,r);
+  ctx.arcTo(x,y,x+w,y,r);
+  ctx.closePath();
+}
+
+function downloadQR(){
+  if(!lastDataUrl){ alert('Сначала создайте QR'); return; }
+  const a = document.createElement('a');
+  a.href = lastDataUrl; a.download = 'qr.png'; a.click();
+}
+
+function saveHistory(){
+  if(!lastDataUrl){ alert('Нет данных'); return; }
+  const list = JSON.parse(localStorage.getItem('qr_history')||'[]');
+  list.unshift({img:lastDataUrl, ts:Date.now()});
+  localStorage.setItem('qr_history', JSON.stringify(list.slice(0,50)));
+  updateCount();
+}
+
+function clearHistory(){
+  localStorage.removeItem('qr_history');
+  updateCount();
+}
+
+function updateCount(){
+  const list = JSON.parse(localStorage.getItem('qr_history')||'[]');
+  document.getElementById('count').textContent = list.length;
+}
+
+updateCount();
+</script>
+
+</body>
+</html>
